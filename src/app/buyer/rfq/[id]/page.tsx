@@ -1,4 +1,4 @@
-import BuyerRfqDetail from "@/components/BuyerRfqDetail";
+import BuyerRfqDetail from "../../../../components/BuyerRfqDetail";
 
 export const instant = false;
 

@@ -1,0 +1,45 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function myRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create: if signedIn() && request.auth.uid == uid
+                    && request.resource.data.role in ['buyer', 'seller'];
+      allow update: if signedIn() && request.auth.uid == uid
+                    && request.resource.data.role == resource.data.role;
+    }
+
+    match /rfqs/{id} {
+      allow create: if signedIn() && myRole() == 'buyer'
+                    && request.resource.data.buyerId == request.auth.uid
+                    && request.resource.data.status == 'open';
+      allow read: if signedIn() && (
+                    resource.data.buyerId == request.auth.uid ||
+                    myRole() == 'seller');
+      allow update: if signedIn() && resource.data.buyerId == request.auth.uid
+                    && request.resource.data.buyerId == resource.data.buyerId;
+      allow delete: if false;
+    }
+
+    match /bids/{id} {
+      allow create: if signedIn() && myRole() == 'seller'
+                    && request.resource.data.sellerId == request.auth.uid
+                    && request.resource.data.price > 0
+                    && get(/databases/$(database)/documents/rfqs/$(request.resource.data.rfqId)).data.status == 'open';
+      allow update: if signedIn() && resource.data.sellerId == request.auth.uid
+                    && request.resource.data.sellerId == resource.data.sellerId
+                    && request.resource.data.rfqId == resource.data.rfqId
+                    && get(/databases/$(database)/documents/rfqs/$(resource.data.rfqId)).data.status == 'open';
+      allow read: if signedIn() && (
+                    resource.data.sellerId == request.auth.uid ||
+                    get(/databases/$(database)/documents/rfqs/$(resource.data.rfqId)).data.buyerId == request.auth.uid);
+      allow delete: if false;
+    }
+  }
+}

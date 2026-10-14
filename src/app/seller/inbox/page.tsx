@@ -1,4 +1,4 @@
-import SellerInbox from "@/components/SellerInbox";
+import SellerInbox from "../../../components/SellerInbox";
 
 export const instant = false;
 

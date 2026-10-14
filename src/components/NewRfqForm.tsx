@@ -21,7 +21,7 @@ type Draft = {
 };
 
 export default function NewRfqForm() {
-    const { user } = useAuth();
+    const { user, name } = useAuth();
     const router = useRouter();
     const [rawText, setRawText] = useState("");
     const [draft, setDraft] = useState<Draft | null>(null);
@@ -96,7 +96,9 @@ export default function NewRfqForm() {
         setSaving(true);
         try {
             await addDoc(collection(db, "rfqs"), {
-                buyerId: user.uid,
+                buyerId: user.uid,  
+                buyerName: name || "Buyer",
+
                 rawText,
                 items: draft.items.map((it) => ({
                     name: it.name.trim(),

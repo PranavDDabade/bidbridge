@@ -49,38 +49,32 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+
+  --background: #f8fafc;            /* page: very light slate */
+  --foreground: #0f172a;            /* main text: near-black slate (high contrast) */
+
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+
+  --primary: #4f46e5;               /* indigo: main buttons and links */
+  --primary-foreground: #ffffff;
+
+  --secondary: #eef2ff;             /* soft indigo tint: badges, hover */
+  --secondary-foreground: #3730a3;
+
+  --muted: #f1f5f9;
+  --muted-foreground: #475569;      /* secondary text: still readable (about 7:1 contrast) */
+
+  --accent: #eef2ff;
+  --accent-foreground: #3730a3;
+
+  --destructive: #dc2626;
+  --border: #e2e8f0;
+  --input: #cbd5e1;                 /* slightly darker so input boxes are clearly visible */
+  --ring: #6366f1;
 }
 
 .dark {
@@ -117,14 +111,20 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+
 @layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
+  * { @apply border-border; }
+  html { font-size: 16px; }
   body {
-    @apply bg-background text-foreground;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
   }
-  html {
-    @apply font-sans;
-  }
+  h1, h2, h3 { letter-spacing: -0.01em; line-height: 1.25; }
 }
+
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.fade-in { animation: fadeIn 0.25s ease-out; }

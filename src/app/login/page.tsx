@@ -48,8 +48,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
+<main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-sky-50 p-4">      <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle>{mode === "signin" ? "Welcome back" : "Create your account"}</CardTitle>
         </CardHeader>
@@ -76,6 +75,9 @@ export default function LoginPage() {
           >
             {mode === "signin" ? "New here? Create an account" : "Already have an account? Sign in"}
           </button>
+          <p className="text-sm text-muted-foreground">
+  Describe what you need. Get bids. Pick the best one.
+</p>
         </CardContent>
       </Card>
     </main>

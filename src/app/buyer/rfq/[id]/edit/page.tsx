@@ -1,4 +1,4 @@
-import EditRfqForm from "@/components/EditRfqForm";
+import EditRfqForm from "../../../../../components/EditRfqForm";
 
 export const instant = false;
 

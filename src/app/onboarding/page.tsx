@@ -45,7 +45,7 @@ export default function OnboardingPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-4">
+    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-sky-50 p-4">
       <Card className="w-full max-w-xl">
         <CardHeader>
           <CardTitle>How will you use BidBridge?</CardTitle>

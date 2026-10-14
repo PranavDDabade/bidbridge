@@ -3,6 +3,7 @@ export type RfqItemDoc = { name: string; quantity: number; unit: string };
 export type RfqDoc = {
   id: string;
   buyerId: string;
+  buyerName: string;
   items: RfqItemDoc[];
   location: string;
   neededBy: string;
@@ -32,6 +33,7 @@ export function toRfq(id: string, d: any): RfqDoc {
   return {
     id,
     buyerId: d.buyerId,
+    buyerName: d.buyerName ?? "Buyer",
     items: d.items ?? [],
     location: d.location ?? "",
     neededBy: d.neededBy ?? "",
