@@ -1,7 +1,8 @@
 import { rfqSchema } from "@/lib/schema";
 import { SYSTEM_PROMPT } from "@/lib/prompts";
 
-const MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest"]; // primary, then lighter fallback
+// Lite first (faster, rarely overloaded), then the standard Flash model
+const MODELS = ["gemini-flash-lite-latest", "gemini-flash-latest"];
 
 async function callLLM(text: string, model: string) {
   const res = await fetch(
@@ -17,13 +18,13 @@ async function callLLM(text: string, model: string) {
         contents: [{ role: "user", parts: [{ text }] }],
         generationConfig: { temperature: 0, responseMimeType: "application/json" },
       }),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(20000),
     }
   );
   if (!res.ok) throw new Error(`LLM request failed: ${res.status} (${model})`);
   const data = await res.json();
   const out = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!out) throw new Error("Empty LLM response");
+  if (!out) throw new Error(`Empty LLM response (${model})`);
   return JSON.parse(out);
 }
 
@@ -42,15 +43,16 @@ export async function POST(req: Request) {
     );
   }
 
+  // One attempt per model: if the first is overloaded or returns bad JSON,
+  // fall through to the next one, then to the manual form on the client.
   for (const model of MODELS) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const parsed = rfqSchema.safeParse(await callLLM(text.trim(), model));
-        if (parsed.success) return Response.json({ ok: true, data: parsed.data });
-      } catch (e) {
-        console.error("parse-rfq attempt failed", e);
-        await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
-      }
+    try {
+      const raw = await callLLM(text.trim(), model);
+      const parsed = rfqSchema.safeParse(raw);
+      if (parsed.success) return Response.json({ ok: true, data: parsed.data });
+      console.error(`parse-rfq schema mismatch (${model})`, JSON.stringify(parsed.error.issues));
+    } catch (e) {
+      console.error("parse-rfq attempt failed", e);
     }
   }
 

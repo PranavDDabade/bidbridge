@@ -1,5 +1,7 @@
+import SellerInbox from "@/components/SellerInbox";
+
 export const instant = false;
 
-export default function SellerInbox() {
-  return <h1 className="text-2xl font-semibold">Seller inbox</h1>;
+export default function Page() {
+  return <SellerInbox />;
 }
