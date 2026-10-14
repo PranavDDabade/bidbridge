@@ -1,5 +1,7 @@
+import BuyerDashboard from "@/components/BuyerDashboard";
+
 export const instant = false;
 
-export default function BuyerDashboard() {
-  return <h1 className="text-2xl font-semibold">Buyer dashboard</h1>;
+export default function Page() {
+  return <BuyerDashboard />;
 }
