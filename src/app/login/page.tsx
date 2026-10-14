@@ -48,7 +48,8 @@ export default function LoginPage() {
   }
 
   return (
-<main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-sky-50 p-4">      <Card className="w-full max-w-sm">
+<main className="flex min-h-screen items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-sm shadow-sm">
         <CardHeader>
           <CardTitle>{mode === "signin" ? "Welcome back" : "Create your account"}</CardTitle>
         </CardHeader>

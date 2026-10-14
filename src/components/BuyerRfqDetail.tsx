@@ -165,7 +165,7 @@ export default function BuyerRfqDetail({ rfqId }: { rfqId: string }) {
               {sorted.map((b) => {
                 const isWinner = rfq.selectedBidId === b.id;
                 return (
-                  <TableRow key={b.id} className={isWinner ? "bg-green-50" : ""}>
+                  <TableRow key={b.id} className={isWinner ? "bg-green-50 hover:bg-green-50/80" : ""}>
                     <TableCell className="font-medium">{b.sellerName}</TableCell>
                     <TableCell>
                       ₹{b.price.toLocaleString("en-IN")}{" "}

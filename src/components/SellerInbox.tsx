@@ -84,12 +84,12 @@ export default function SellerInbox() {
           const extra = r.items.length - shown.length;
           return (
             <Link key={r.id} href={`/seller/rfq/${r.id}`} className="block">
-              <Card className="transition-all hover:border-primary/40 hover:shadow-md">
+              <Card className="transition-all hover:border-primary/50 hover:shadow-sm">
                 <CardContent className="space-y-4 py-5">
                   {/* top row: buyer + status */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-indigo-50 text-sm font-semibold text-indigo-700">
+                      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accent text-sm font-semibold text-primary">
                         {r.buyerName.charAt(0).toUpperCase()}
                       </div>
                       <div>
@@ -100,11 +100,11 @@ export default function SellerInbox() {
                       </div>
                     </div>
                     {bid ? (
-                      <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+                      <Badge className="bg-green-50 text-green-700 hover:bg-green-50 border-green-200">
                         You bid
                       </Badge>
                     ) : (
-                      <Badge className="bg-indigo-50 text-indigo-700 hover:bg-indigo-50">
+                      <Badge className="bg-accent text-primary hover:bg-accent border-primary/20">
                         New
                       </Badge>
                     )}

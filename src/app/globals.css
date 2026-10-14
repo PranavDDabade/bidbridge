@@ -49,32 +49,32 @@
 }
 
 :root {
-  --radius: 0.625rem;
+  --radius: 0.75rem;
 
-  --background: #f8fafc;            /* page: very light slate */
-  --foreground: #0f172a;            /* main text: near-black slate (high contrast) */
+  --background: #FFFEFA;            /* main page: warm ivory */
+  --foreground: #292524;            /* primary text: warm dark brown */
 
-  --card: #ffffff;
-  --card-foreground: #0f172a;
-  --popover: #ffffff;
-  --popover-foreground: #0f172a;
+  --card: #FFFFFF;                  /* cards: pure white */
+  --card-foreground: #292524;
+  --popover: #FFFFFF;
+  --popover-foreground: #292524;
 
-  --primary: #4f46e5;               /* indigo: main buttons and links */
-  --primary-foreground: #ffffff;
+  --primary: #B77936;               /* primary accent: warm amber-brown */
+  --primary-foreground: #FFFFFF;
 
-  --secondary: #eef2ff;             /* soft indigo tint: badges, hover */
-  --secondary-foreground: #3730a3;
+  --secondary: #FAF7F0;             /* secondary section: warm beige */
+  --secondary-foreground: #292524;
 
-  --muted: #f1f5f9;
-  --muted-foreground: #475569;      /* secondary text: still readable (about 7:1 contrast) */
+  --muted: #FAF7F0;                 /* muted background: warm beige */
+  --muted-foreground: #78716C;      /* secondary text: warm gray */
 
-  --accent: #eef2ff;
-  --accent-foreground: #3730a3;
+  --accent: #F3EBDD;                /* soft accent: light beige */
+  --accent-foreground: #292524;
 
-  --destructive: #dc2626;
-  --border: #e2e8f0;
-  --input: #cbd5e1;                 /* slightly darker so input boxes are clearly visible */
-  --ring: #6366f1;
+  --destructive: #DC2626;           /* error red */
+  --border: #E7E0D5;                /* warm gray border */
+  --input: #E7E0D5;                 /* input border */
+  --ring: #B77936;                  /* focus ring: matches primary */
 }
 
 .dark {

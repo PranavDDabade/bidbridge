@@ -10,9 +10,9 @@ export function AppHeader() {
   const router = useRouter();
   const home = role === "buyer" ? "/buyer/dashboard" : "/seller/inbox";
   return (
-    <header className="sticky top-0 z-10 border-b bg-white/80 backdrop-blur">
+    <header className="sticky top-0 z-10 border-b border-border bg-card/95 backdrop-blur-sm shadow-sm">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-        <Link href={home} className="flex items-center gap-2 font-semibold">
+        <Link href={home} className="flex items-center gap-2 font-semibold text-foreground hover:text-primary transition-colors">
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground">B</span>
           <span className="text-lg tracking-tight">BidBridge</span>
         </Link>

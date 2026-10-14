@@ -21,7 +21,7 @@ type Rfq = {
 export default function BuyerDashboard() {
   const { user } = useAuth();
   const [rfqs, setRfqs] = useState<Rfq[] | null>(null);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -43,36 +43,50 @@ export default function BuyerDashboard() {
         // newest first, sorted in code so no Firestore index is needed
         list.sort((a, b) => b.createdAtMs - a.createdAtMs);
         setRfqs(list);
+        setError(null);
       },
-      () => setError(true)
+      (err) => {
+        console.error("dashboard query failed", err);
+        setError(err.code ?? "unknown");
+        setRfqs([]);
+      }
     );
   }, [user]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">My requests</h1>
+    <div className="fade-in space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">My requests</h1>
+          <p className="text-sm text-muted-foreground">
+            Requests you&apos;ve posted, newest first.
+          </p>
+        </div>
         <Button asChild>
           <Link href="/buyer/rfq/new">New request</Link>
         </Button>
       </div>
 
       {error && (
-        <p className="text-red-600">
-          Couldn&apos;t load your requests. Refresh and try again.
-        </p>
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="py-4 text-sm text-red-700">
+            Couldn&apos;t load your requests ({error}). Check your connection and
+            refresh. If it says permission-denied, check the Firestore rules.
+          </CardContent>
+        </Card>
       )}
 
-      {rfqs === null && !error && (
+      {rfqs === null && (
         <div className="space-y-3">
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-24 w-full" />
         </div>
       )}
 
-      {rfqs?.length === 0 && (
+      {rfqs?.length === 0 && !error && (
         <Card>
-          <CardContent className="py-10 text-center space-y-3">
+          <CardContent className="space-y-3 py-12 text-center">
+            <div className="text-3xl">📭</div>
             <p className="font-medium">No requests yet</p>
             <p className="text-sm text-muted-foreground">
               Describe what you need in plain words and we&apos;ll turn it into a
@@ -88,8 +102,8 @@ export default function BuyerDashboard() {
       <div className="space-y-3">
         {rfqs?.map((r) => (
           <Link key={r.id} href={`/buyer/rfq/${r.id}`} className="block">
-            <Card className="hover:bg-muted/50 transition-colors">
-              <CardContent className="py-4 flex items-center justify-between gap-4">
+            <Card className="transition-all hover:border-primary/40 hover:shadow-md">
+              <CardContent className="flex items-center justify-between gap-4 py-4">
                 <div className="space-y-1">
                   <p className="font-medium">
                     {r.items
@@ -104,7 +118,13 @@ export default function BuyerDashboard() {
                     {r.location} · needed by {r.neededBy}
                   </p>
                 </div>
-                <Badge variant={r.status === "open" ? "default" : "secondary"}>
+                <Badge
+                  className={
+                    r.status === "open"
+                      ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-100"
+                  }
+                >
                   {r.status === "open" ? "Open" : "Awarded"}
                 </Badge>
               </CardContent>
