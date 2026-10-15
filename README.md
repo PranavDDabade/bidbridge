@@ -3,7 +3,7 @@
 BidBridge is a construction-procurement marketplace concept for turning informal material requests into structured requests for quotation (RFQs). Buyers can describe the materials they need, review the extracted details, and receive bids from sellers. The project uses AI-assisted parsing to help structure requests; AI output should always be reviewed before submission.
 
 **Repository:** https://github.com/PranavDDabade/bidbridge  
-**Live demo:** Add your deployed URL here once deployment is complete.
+**Live Demo:** https://bidbridge-opal.vercel.app
 
 ## Features
 
