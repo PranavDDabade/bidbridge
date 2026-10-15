@@ -1,8 +1,18 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { collection, doc, getDocs, onSnapshot, query, updateDoc, where, serverTimestamp } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDocs,
+  onSnapshot,
+  query,
+  serverTimestamp,
+  updateDoc,
+  where,
+} from "firebase/firestore";
 import { toast } from "sonner";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
@@ -16,125 +26,300 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 export default function EditRfqForm({ rfqId }: { rfqId: string }) {
   const { user } = useAuth();
   const router = useRouter();
+
   const [rfq, setRfq] = useState<RfqDoc | null | undefined>(undefined);
   const [items, setItems] = useState<RfqItemDoc[]>([]);
   const [location, setLocation] = useState("");
   const [neededBy, setNeededBy] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [bidsExist, setBidsExist] = useState(false);
 
   useEffect(() => {
-    // one-time load into the form; don't overwrite the buyer's typing on later snapshots
     return onSnapshot(
       doc(db, "rfqs", rfqId),
       (snap) => {
-        if (!snap.exists()) return setRfq(null);
-        const r = toRfq(snap.id, snap.data());
-        setRfq(r);
-        setLoaded((was) => {
-          if (!was) {
-            setItems(r.items.map((i) => ({ ...i })));
-            setLocation(r.location);
-            setNeededBy(r.neededBy);
+        if (!snap.exists()) {
+          setRfq(null);
+          return;
+        }
+
+        const currentRfq = toRfq(snap.id, snap.data());
+        setRfq(currentRfq);
+
+        // Initialize fields once so later snapshots do not overwrite typing.
+        setLoaded((wasLoaded) => {
+          if (!wasLoaded) {
+            setItems(currentRfq.items.map((item) => ({ ...item })));
+            setLocation(currentRfq.location);
+            setNeededBy(currentRfq.neededBy);
           }
           return true;
         });
       },
-      () => setRfq(null)
+      (err) => {
+        console.error("Failed to load RFQ for editing:", err);
+        setRfq(null);
+      }
     );
   }, [rfqId]);
 
-  function updateItem(i: number, patch: Partial<RfqItemDoc>) {
-    setItems((prev) => prev.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
+  useEffect(() => {
+    const q = query(collection(db, "bids"), where("rfqId", "==", rfqId));
+
+    return onSnapshot(
+      q,
+      (snap) => setBidsExist(!snap.empty),
+      (err) => {
+        console.error("Failed to check bids for RFQ:", err);
+        // Fail closed: if bid visibility cannot be verified, do not permit editing.
+        setBidsExist(true);
+        toast.error("Couldn't verify bids. Editing is temporarily disabled.");
+      }
+    );
+  }, [rfqId]);
+
+  function updateItem(index: number, patch: Partial<RfqItemDoc>) {
+    setItems((previous) =>
+      previous.map((item, currentIndex) =>
+        currentIndex === index ? { ...item, ...patch } : item
+      )
+    );
   }
 
   async function save() {
-    if (!rfq || !user) return;
-    for (const it of items) {
-      if (!it.name.trim()) return toast.error("Every item needs a name.");
-      if (!it.quantity || it.quantity <= 0) return toast.error(`Enter a quantity for "${it.name}".`);
+    if (saving) return;
+
+    if (!user) {
+      toast.error("Please sign in to edit this request.");
+      return;
     }
-    if (!location.trim()) return toast.error("Enter a delivery location.");
-    if (!neededBy.trim()) return toast.error("Enter when you need it.");
+
+    if (!rfq || rfq.buyerId !== user.uid) {
+      toast.error("You can only edit your own request.");
+      return;
+    }
+
+    if (rfq.status !== "open") {
+      toast.error("This request is no longer open.");
+      return;
+    }
+
+    if (bidsExist) {
+      toast.error("A seller has bid, so this request can no longer be edited.");
+      router.replace(`/buyer/rfq/${rfqId}`);
+      return;
+    }
+
+    if (items.length === 0) {
+      toast.error("Add at least one item.");
+      return;
+    }
+
+    for (const item of items) {
+      if (!item.name.trim()) {
+        toast.error("Every item needs a name.");
+        return;
+      }
+
+      if (!Number.isFinite(item.quantity) || item.quantity <= 0) {
+        toast.error(`Enter a valid quantity for "${item.name}".`);
+        return;
+      }
+    }
+
+    if (!location.trim()) {
+      toast.error("Enter a delivery location.");
+      return;
+    }
+
+    if (!neededBy.trim()) {
+      toast.error("Enter when you need it.");
+      return;
+    }
 
     setSaving(true);
+
     try {
-      // re-check at save time: a seller may have bid while the buyer was editing
-      const bidsSnap = await getDocs(query(collection(db, "bids"), where("rfqId", "==", rfqId)));
+      // Re-check before saving. Firestore rules must also enforce the policy;
+      // this client check alone cannot prevent a concurrent bid from being placed.
+      const bidsSnap = await getDocs(
+        query(collection(db, "bids"), where("rfqId", "==", rfqId))
+      );
+
       if (!bidsSnap.empty) {
-        toast.error("A seller just placed a bid, so this request can no longer be edited.");
+        setBidsExist(true);
+        toast.error(
+          "A seller has placed a bid, so this request can no longer be edited."
+        );
         router.replace(`/buyer/rfq/${rfqId}`);
         return;
       }
+
+      // The rules' editable-field allowlist uses updatedAt, not editedAt.
       await updateDoc(doc(db, "rfqs", rfqId), {
-        items: items.map((i) => ({ name: i.name.trim(), quantity: i.quantity, unit: (i.unit ?? "").trim() })),
+        items: items.map((item) => ({
+          name: item.name.trim(),
+          quantity: item.quantity,
+          unit: (item.unit ?? "").trim(),
+        })),
         location: location.trim(),
         neededBy: neededBy.trim(),
-        editedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       });
+
       toast.success("Request updated.");
       router.replace(`/buyer/rfq/${rfqId}`);
-    } catch {
-      toast.error("Couldn't save changes. Please try again.");
+    } catch (err) {
+      console.error("Failed to save RFQ changes:", err);
+
+      const code =
+        typeof err === "object" && err !== null && "code" in err
+          ? String(err.code)
+          : "";
+
+      if (code === "permission-denied") {
+        toast.error(
+          "Permission denied. Confirm that the RFQ is open, belongs to you, and the rules allow these fields."
+        );
+      } else {
+        toast.error("Couldn't save changes. Please try again.");
+      }
     } finally {
       setSaving(false);
     }
   }
 
   if (rfq === undefined) return <Skeleton className="h-60 w-full" />;
-  if (rfq === null || (user && rfq.buyerId !== user.uid))
-    return <p>This request doesn&apos;t exist or isn&apos;t yours.</p>;
-  if (rfq.status === "closed")
+
+  if (rfq === null || !user || rfq.buyerId !== user.uid) {
+    return <p>This request doesn't exist or isn't yours.</p>;
+  }
+
+  if (rfq.status !== "open") {
     return (
       <div className="space-y-3">
-        <p>This request has been awarded and can no longer be edited.</p>
-        <Button asChild variant="outline"><Link href={`/buyer/rfq/${rfqId}`}>Back</Link></Button>
+        <p>This request is no longer open and cannot be edited.</p>
+        <Button asChild variant="outline">
+          <Link href={`/buyer/rfq/${rfqId}`}>Back</Link>
+        </Button>
       </div>
     );
+  }
+
+  if (bidsExist) {
+    return (
+      <div className="space-y-3">
+        <p>A seller has submitted a bid, so this request can no longer be edited.</p>
+        <Button asChild variant="outline">
+          <Link href={`/buyer/rfq/${rfqId}`}>Back</Link>
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <Button asChild variant="ghost" size="sm"><Link href={`/buyer/rfq/${rfqId}`}>← Cancel</Link></Button>
+      <Button asChild variant="ghost" size="sm">
+        <Link href={`/buyer/rfq/${rfqId}`}>← Cancel</Link>
+      </Button>
+
       <Card>
-        <CardHeader><CardTitle className="text-base">Edit request</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-base">Edit request</CardTitle>
+        </CardHeader>
         <CardContent className="space-y-4">
-          {items.map((it, i) => (
-            <div key={i} className="grid grid-cols-12 gap-2 items-end">
-              <div className="col-span-12 sm:col-span-5 space-y-1">
+          {items.map((item, index) => (
+            <div key={index} className="grid grid-cols-12 items-end gap-2">
+              <div className="col-span-12 space-y-1 sm:col-span-5">
                 <Label>Item</Label>
-                <Input value={it.name} onChange={(e) => updateItem(i, { name: e.target.value })} />
+                <Input
+                  value={item.name}
+                  onChange={(event) =>
+                    updateItem(index, { name: event.target.value })
+                  }
+                />
               </div>
-              <div className="col-span-5 sm:col-span-3 space-y-1">
+
+              <div className="col-span-5 space-y-1 sm:col-span-3">
                 <Label>Quantity</Label>
-                <Input type="number" min={1} value={it.quantity ?? ""}
-                  onChange={(e) => updateItem(i, { quantity: Number(e.target.value) })} />
+                <Input
+                  type="number"
+                  min={1}
+                  value={item.quantity ?? ""}
+                  onChange={(event) =>
+                    updateItem(index, {
+                      quantity:
+                        event.target.value === ""
+                          ? ("" as unknown as number)
+                          : Number(event.target.value),
+                    })
+                  }
+                />
               </div>
-              <div className="col-span-5 sm:col-span-3 space-y-1">
+
+              <div className="col-span-5 space-y-1 sm:col-span-3">
                 <Label>Unit</Label>
-                <Input value={it.unit ?? ""} onChange={(e) => updateItem(i, { unit: e.target.value })} />
+                <Input
+                  value={item.unit ?? ""}
+                  onChange={(event) =>
+                    updateItem(index, { unit: event.target.value })
+                  }
+                />
               </div>
-              <Button variant="ghost" size="sm" className="col-span-2 sm:col-span-1"
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="col-span-2 sm:col-span-1"
                 disabled={items.length === 1}
-                onClick={() => setItems(items.filter((_, idx) => idx !== i))}>
+                onClick={() =>
+                  setItems((previous) =>
+                    previous.filter((_, currentIndex) => currentIndex !== index)
+                  )
+                }
+              >
                 Remove
               </Button>
             </div>
           ))}
-          <Button variant="outline" size="sm"
-            onClick={() => setItems([...items, { name: "", quantity: 1, unit: "" }])}>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              setItems((previous) => [
+                ...previous,
+                { name: "", quantity: 1, unit: "" } as RfqItemDoc,
+              ])
+            }
+          >
             + Add item
           </Button>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1">
               <Label>Delivery location</Label>
-              <Input value={location} onChange={(e) => setLocation(e.target.value)} />
+              <Input
+                value={location}
+                onChange={(event) => setLocation(event.target.value)}
+              />
             </div>
+
             <div className="space-y-1">
               <Label>Needed by</Label>
-              <Input value={neededBy} onChange={(e) => setNeededBy(e.target.value)} />
+              <Input
+                value={neededBy}
+                onChange={(event) => setNeededBy(event.target.value)}
+              />
             </div>
           </div>
-          <Button onClick={save} disabled={saving}>{saving ? "Saving..." : "Save changes"}</Button>
+
+          <Button type="button" onClick={save} disabled={saving || bidsExist}>
+            {saving ? "Saving..." : "Save changes"}
+          </Button>
         </CardContent>
       </Card>
     </div>

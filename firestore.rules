@@ -2,152 +2,194 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ============ AUTHENTICATION FUNCTIONS ============
+    // BidBridge: authenticated, role-based access with ownership checks.
+    // All paths not explicitly allowed below are denied at the end.
+
     function signedIn() {
       return request.auth != null;
     }
 
-    function myUid() {
-      return request.auth.uid;
-    }
-
-    function myRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
-    }
-
-    // ============ VALIDATION FUNCTIONS ============
-
-    // Check if user exists and has valid role
     function userExists(uid) {
       return exists(/databases/$(database)/documents/users/$(uid));
     }
 
-    function hasRole(uid, role) {
-      return get(/databases/$(database)/documents/users/$(uid)).data.role == role;
+    function currentUserIs(role) {
+      return signedIn()
+        && userExists(request.auth.uid)
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
     }
 
-    // RFQ validation helpers
+    function validName(value) {
+      return value is string && value.size() > 0 && value.size() <= 100;
+    }
+
+    function validPrice(value) {
+      return value is number && value > 0 && value <= 10000000;
+    }
+
+    function validLeadTime(value) {
+      return value is int && value > 0 && value <= 365;
+    }
+
+    function validNotes(value) {
+      return value is string && value.size() <= 2000;
+    }
+
+    function validItems(value) {
+      return value is list && value.size() > 0 && value.size() <= 50;
+    }
+
+    function validRfqDocument(data) {
+      return data.keys().hasAll([
+          'buyerId', 'status', 'items', 'location', 'neededBy', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'buyerId', 'status', 'items', 'location', 'neededBy',
+          'createdAt', 'updatedAt', 'awardedTo', 'awardedAt'
+        ])
+        && data.buyerId is string
+        && data.status in ['open', 'awarded']
+        && validItems(data.items)
+        && data.location is string
+        && data.location.size() > 0
+        && data.location.size() <= 200
+        && data.neededBy is string
+        && data.neededBy.size() > 0
+        && data.neededBy.size() <= 100
+        && data.createdAt is timestamp
+        && (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    function validBidDocument(data) {
+      return data.keys().hasAll([
+          'sellerId', 'rfqId', 'price', 'leadTimeDays', 'notes', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'sellerId', 'rfqId', 'price', 'leadTimeDays', 'notes',
+          'createdAt', 'updatedAt', 'status'
+        ])
+        && data.sellerId is string
+        && data.rfqId is string
+        && data.rfqId.size() > 0
+        && validPrice(data.price)
+        && validLeadTime(data.leadTimeDays)
+        && validNotes(data.notes)
+        && data.createdAt is timestamp
+        && (!('updatedAt' in data) || data.updatedAt is timestamp)
+        && (!('status' in data) || data.status in ['submitted', 'awarded', 'not_selected']);
+    }
+
+    function rfqExists(rfqId) {
+      return exists(/databases/$(database)/documents/rfqs/$(rfqId));
+    }
+
     function rfqIsOpen(rfqId) {
-      return get(/databases/$(database)/documents/rfqs/$(rfqId)).data.status == 'open';
+      return rfqExists(rfqId)
+        && get(/databases/$(database)/documents/rfqs/$(rfqId)).data.status == 'open';
     }
 
-    function rfqIsAwarded(rfqId) {
-      return get(/databases/$(database)/documents/rfqs/$(rfqId)).data.status == 'awarded';
+    function buyerOwnsRfq(rfqId, uid) {
+      return rfqExists(rfqId)
+        && get(/databases/$(database)/documents/rfqs/$(rfqId)).data.buyerId == uid;
     }
 
-    function rfqBelongsTo(rfqId, uid) {
-      return get(/databases/$(database)/documents/rfqs/$(rfqId)).data.buyerId == uid;
-    }
-
-    // Bid validation helpers
-    function bidBelongsTo(bidId, uid) {
-      return get(/databases/$(database)/documents/bids/$(bidId)).data.sellerId == uid;
-    }
-
-    // Immutability check: verify critical fields don't change
-    function immutableFieldsUnchanged(oldData, newData, fields) {
-      return fields.all(field, oldData[field] == newData[field]);
-    }
-
-    // Price validation: realistic bounds (0 - 10M)
-    function validPrice(price) {
-      return price > 0 && price < 10000000;
-    }
-
-    // Lead time validation: 1-365 days
-    function validLeadTime(days) {
-      return days > 0 && days <= 365;
-    }
-
-    // ============ USERS COLLECTION ============
+    // USERS: a user can read only their own profile and cannot change their role.
     match /users/{uid} {
-      // Read: Only self can read own profile
-      allow read: if signedIn() && myUid() == uid;
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list: if false;
 
-      // Create: Self-auth, valid role, user doesn't exist yet
+      // Adjust this allowlist if your app intentionally writes additional profile fields.
       allow create: if signedIn()
-                    && myUid() == uid
-                    && request.resource.data.role in ['buyer', 'seller']
-                    && request.resource.data.size() == 3  // role, name, createdAt only
-                    && request.resource.data.name is string
-                    && request.resource.data.name.size() > 0;
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasAll(['role', 'name', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['role', 'name', 'createdAt'])
+        && request.resource.data.role in ['buyer', 'seller']
+        && validName(request.resource.data.name)
+        && request.resource.data.createdAt is timestamp;
 
-      // Update: Self-auth only, role is immutable, name is optional
       allow update: if signedIn()
-                    && myUid() == uid
-                    && resource.data.role == request.resource.data.role
-                    && request.resource.data.role in ['buyer', 'seller'];
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasAll(['role', 'name', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['role', 'name', 'createdAt'])
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.createdAt == resource.data.createdAt
+        && validName(request.resource.data.name);
 
-      // Delete: Never allowed
       allow delete: if false;
     }
 
-    // ============ RFQS COLLECTION ============
+    // RFQS: buyer creates their own request; seller reads requests to quote.
     match /rfqs/{rfqId} {
-      // CREATE: Buyer only, ownership verification, valid initial state
-      allow create: if signedIn()
-                    && myRole() == 'buyer'
-                    && request.resource.data.buyerId == myUid()
-                    && request.resource.data.status == 'open'
-                    && request.resource.data.items is list
-                    && request.resource.data.items.size() > 0
-                    && request.resource.data.location is string
-                    && request.resource.data.neededBy is string
-                    && userExists(myUid());
+      allow create: if currentUserIs('buyer')
+        && validRfqDocument(request.resource.data)
+        && request.resource.data.buyerId == request.auth.uid
+        && request.resource.data.status == 'open'
+        && !request.resource.data.keys().hasAny(['awardedTo', 'awardedAt']);
 
-      // READ: Creator or seller can read
-      allow read: if signedIn()
-                  && (resource.data.buyerId == myUid() || myRole() == 'seller');
+      allow get, list: if signedIn()
+        && (
+          resource.data.buyerId == request.auth.uid
+          || (currentUserIs('seller') && resource.data.status in ['open', 'awarded'])
+        );
 
-      // UPDATE: Creator only, with strict ABAC rules
-      allow update: if signedIn()
-                    && myUid() == resource.data.buyerId
-                    && immutableFieldsUnchanged(resource.data, request.resource.data, ['buyerId', 'createdAt'])
-                    // Only creator can edit BEFORE bids arrive
-                    && (resource.data.status == 'open' ||
-                        // Or: status change from 'open' to 'awarded' (with awardedTo field)
-                        (resource.data.status == 'open'
-                         && request.resource.data.status == 'awarded'
-                         && request.resource.data.awardedTo is string
-                         && request.resource.data.awardedTo.size() > 0));
+      allow update: if currentUserIs('buyer')
+        && resource.data.buyerId == request.auth.uid
+        && (
+          // Edit only RFQ details while the request remains open.
+          (
+            resource.data.status == 'open'
+            && request.resource.data.status == 'open'
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['items', 'location', 'neededBy', 'updatedAt'])
+            && validRfqDocument(request.resource.data)
+          )
+          ||
+          // Award only once to a bid document belonging to this RFQ.
+          (
+            resource.data.status == 'open'
+            && request.resource.data.status == 'awarded'
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status', 'awardedTo', 'awardedAt', 'updatedAt'])
+            && request.resource.data.awardedTo is string
+            && request.resource.data.awardedAt is timestamp
+            && exists(/databases/$(database)/documents/bids/$(request.resource.data.awardedTo))
+            && get(/databases/$(database)/documents/bids/$(request.resource.data.awardedTo)).data.rfqId == rfqId
+            && validRfqDocument(request.resource.data)
+          )
+        );
 
-      // DELETE: Never allowed (audit trail)
       allow delete: if false;
     }
 
-    // ============ BIDS COLLECTION ============
+    // BIDS: sellers may create/update only their own bids for open RFQs.
     match /bids/{bidId} {
-      // CREATE: Seller only, valid bid, RFQ must be open
-      allow create: if signedIn()
-                    && myRole() == 'seller'
-                    && request.resource.data.sellerId == myUid()
-                    && request.resource.data.rfqId is string
-                    && rfqIsOpen(request.resource.data.rfqId)
-                    && request.resource.data.price is number
-                    && validPrice(request.resource.data.price)
-                    && request.resource.data.leadTimeDays is number
-                    && validLeadTime(request.resource.data.leadTimeDays)
-                    && request.resource.data.notes is string
-                    && userExists(myUid());
+      allow create: if currentUserIs('seller')
+        && validBidDocument(request.resource.data)
+        && request.resource.data.sellerId == request.auth.uid
+        && rfqIsOpen(request.resource.data.rfqId);
 
-      // READ: Seller (own bid) or buyer (of that RFQ)
-      allow read: if signedIn()
-                  && (resource.data.sellerId == myUid()
-                      || rfqBelongsTo(resource.data.rfqId, myUid()));
+      allow get, list: if signedIn()
+        && (
+          resource.data.sellerId == request.auth.uid
+          || (currentUserIs('buyer') && buyerOwnsRfq(resource.data.rfqId, request.auth.uid))
+        );
 
-      // UPDATE: Seller only, immutable RFQ link, only when RFQ open
-      allow update: if signedIn()
-                    && myUid() == resource.data.sellerId
-                    && resource.data.rfqId == request.resource.data.rfqId
-                    && rfqIsOpen(resource.data.rfqId)
-                    && immutableFieldsUnchanged(resource.data, request.resource.data, ['rfqId', 'sellerId', 'createdAt'])
-                    && request.resource.data.price is number
-                    && validPrice(request.resource.data.price)
-                    && request.resource.data.leadTimeDays is number
-                    && validLeadTime(request.resource.data.leadTimeDays);
+      allow update: if currentUserIs('seller')
+        && resource.data.sellerId == request.auth.uid
+        && request.resource.data.sellerId == resource.data.sellerId
+        && request.resource.data.rfqId == resource.data.rfqId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['price', 'leadTimeDays', 'notes', 'updatedAt'])
+        && rfqIsOpen(resource.data.rfqId)
+        && validBidDocument(request.resource.data);
 
-      // DELETE: Never allowed (audit trail)
       allow delete: if false;
+    }
+
+    // Default deny: no other collections are accessible from client applications.
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
