@@ -1,14 +1,22 @@
 "use client";
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 import { toast } from "sonner";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
+import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+<<<<<<< HEAD
 import { Zap, TrendingUp, Lock } from "lucide-react";
+=======
+import { ArrowLeft } from "lucide-react";
+>>>>>>> 304d64b (Landing Page Added and Basic UI changed)
 
 function friendlyError(code: string) {
   switch (code) {
@@ -29,18 +37,39 @@ function friendlyError(code: string) {
 
 export default function LoginPage() {
   const router = useRouter();
+  const { user, role, loading: authLoading } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // If user is already logged in, redirect them to their active workspace
+  useEffect(() => {
+    if (authLoading || !user) return;
+    if (!role) {
+      router.replace("/onboarding");
+    } else {
+      router.replace(role === "buyer" ? "/buyer/dashboard" : "/seller/inbox");
+    }
+  }, [user, role, authLoading, router]);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     try {
-      if (mode === "signin") await signInWithEmailAndPassword(auth, email, password);
-      else await createUserWithEmailAndPassword(auth, email, password);
-      router.replace("/");
+      const cred =
+        mode === "signin"
+          ? await signInWithEmailAndPassword(auth, email, password)
+          : await createUserWithEmailAndPassword(auth, email, password);
+
+      const snap = await getDoc(doc(db, "users", cred.user.uid));
+      const userRole = snap.exists() ? snap.data()?.role : null;
+
+      if (!userRole) {
+        router.replace("/onboarding");
+      } else {
+        router.replace(userRole === "buyer" ? "/buyer/dashboard" : "/seller/inbox");
+      }
     } catch (err: any) {
       toast.error(friendlyError(err.code));
     } finally {
@@ -49,6 +78,7 @@ export default function LoginPage() {
   }
 
   return (
+<<<<<<< HEAD
     <main className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-amber-50 flex items-center justify-center p-4">
       <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
         {/* Left Side - Features */}
@@ -225,6 +255,75 @@ export default function LoginPage() {
             </p>
           </div>
         </div>
+=======
+    <main className="flex min-h-screen items-center justify-center bg-background p-4 relative">
+      <div className="w-full max-w-sm space-y-3">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors font-medium"
+        >
+          <ArrowLeft className="size-3.5" />
+          Back to BidBridge Home
+        </Link>
+
+        <Card className="shadow-sm border-border">
+          <CardHeader className="space-y-1">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="grid h-6 w-6 place-items-center rounded bg-primary text-primary-foreground font-bold text-xs">
+                B
+              </span>
+              <span className="text-sm font-semibold tracking-tight text-foreground">BidBridge</span>
+            </div>
+            <CardTitle className="text-xl font-bold tracking-tight">
+              {mode === "signin" ? "Welcome back" : "Create your account"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={onSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@company.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  required
+                  minLength={6}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                />
+              </div>
+              <Button type="submit" className="w-full font-semibold shadow-xs" disabled={busy}>
+                {busy ? "Please wait..." : mode === "signin" ? "Sign in" : "Create account"}
+              </Button>
+            </form>
+
+            <button
+              type="button"
+              className="mt-4 text-xs text-muted-foreground hover:text-foreground underline block"
+              onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+            >
+              {mode === "signin"
+                ? "New here? Create an account"
+                : "Already have an account? Sign in"}
+            </button>
+
+            <p className="mt-4 pt-3 border-t border-border/60 text-xs text-muted-foreground">
+              Describe what you need. Get verified bids. Pick the best one.
+            </p>
+          </CardContent>
+        </Card>
+>>>>>>> 304d64b (Landing Page Added and Basic UI changed)
       </div>
     </main>
   );

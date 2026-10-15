@@ -19,7 +19,7 @@ export default function OnboardingPage() {
   useEffect(() => {
     if (loading) return;
     if (!user) router.replace("/login");
-    else if (role) router.replace("/");
+    else if (role) router.replace(role === "buyer" ? "/buyer/dashboard" : "/seller/inbox");
   }, [user, role, loading, router]);
 
   async function choose(selected: "buyer" | "seller") {
@@ -36,7 +36,7 @@ export default function OnboardingPage() {
         createdAt: serverTimestamp(),
       });
       await refreshProfile();
-      router.replace("/");
+      router.replace(selected === "buyer" ? "/buyer/dashboard" : "/seller/inbox");
     } catch {
       toast.error("Couldn't save your choice. Please try again.");
     } finally {
